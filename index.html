@@ -1,83 +1,171 @@
-<!DOCTYPE html><html class=''>
+<!DOCTYPE html>
+<html class=''>
+
 <head>
+
     <meta charset='UTF-8'>
     <meta name="robots" content="noindex">
-    <title>The Experiment Factory: Adaptive N-Back</title>
-    
-<link rel='stylesheet' type='text/css' href='jspsych.css'>
-<link rel='stylesheet' type='text/css' href='default_style.css'>
-<link rel='stylesheet' type='text/css' href='style.css'>
+
+    <title>Adaptive N-Back</title>
+
+    <link rel='stylesheet' type='text/css' href='jspsych.css'>
+    <link rel='stylesheet' type='text/css' href='default_style.css'>
+    <link rel='stylesheet' type='text/css' href='style.css'>
+
 </head>
 
 <body>
+
 <script src='js/jquery.min.js'></script>
 <script src='js/math.min.js'></script>
+
 <script src='js/jspsych/jspsych.js'></script>
+
 <script src='js/jspsych/plugins/jspsych-text.js'></script>
+
 <script src='js/jspsych/poldrack_plugins/jspsych-poldrack-text.js'></script>
 <script src='js/jspsych/poldrack_plugins/jspsych-poldrack-instructions.js'></script>
 <script src='js/jspsych/poldrack_plugins/jspsych-attention-check.js'></script>
 <script src='js/jspsych/poldrack_plugins/jspsych-poldrack-single-stim.js'></script>
+
 <script src='js/jspsych/poldrack_plugins/jspsych-mobile-nback.js'></script>
+
 <script src='js/jspsych/poldrack_plugins/jspsych-poldrack-categorize.js'></script>
+
 <script src='js/jspsych/plugins/jspsych-survey-text.js'></script>
 <script src='js/jspsych/plugins/jspsych-call-function.js'></script>
+
 <script src='js/jspsych/poldrack_plugins/poldrack_utils.js'></script>
+
 <script src='js/jspsych/poldrack_plugins/jspsych-mobile-text-button.js'></script>
+
 <script src='js/jspsych/poldrack_plugins/jspsych-participant-id.js'></script>
+
 <script src='experiment.js'></script>
 
+
 <script>
-$( document ).ready(function() {
+
+$(document).ready(function() {
 
     jsPsych.init({
-             timeline: adaptive_n_back_experiment,
-             display_element: "getDisplayElement",
-             fullscreen: false,
-             on_trial_finish: function(data){
-               addID('adaptive-n-back')
-               jsPsych.data.addDataToLastTrial({
-                  participant_id: participant_id,
-                  session_type: session_type,
-                 training_day: training_day,
-                 session_date: session_date
-             });
-          },
-             on_finish: function(data){
 
-                 // Serialize the data
-                 var promise = new Promise(function(resolve, reject) {
-                     var data = jsPsych.data.dataAsJSON();
-                     resolve(data);
-                 })
+        timeline: adaptive_n_back_experiment,
 
-                 promise.then(function(data) {
+        display_element: "getDisplayElement",
+
+        fullscreen: false,
 
 
-                     $.ajax({
-                         type: "POST",
-                         url: '/save',
-                         data: { "data": data },
-                         success: function(){ document.location = "/next" },
-                         dataType: "application/json",
+        // 每一个 trial 结束后，
+        // 自动加入被试编号、实验阶段、训练天数和日期
+        on_trial_finish: function(data) {
 
-                         // Endpoint not running, local save
-                         error: function(err) {
+            addID('adaptive-n-back');
 
-                             if (err.status == 200){
-                                 document.location = "/next";
-                             } else {
+            jsPsych.data.addDataToLastTrial({
 
-                                 // If error, assue local save
-                                 jsPsych.data.localSave('adaptive-n-back_results.csv', 'csv');
-                             }
-                         }
-                     });
-                 })
-             }
+                participant_id: participant_id,
+
+                session_type: session_type,
+
+                training_day: training_day,
+
+                session_date: session_date
 
             });
+
+        },
+
+
+        // 整个实验完成后自动保存 CSV
+        on_finish: function(data) {
+
+            // 防止被试编号中出现不适合文件名的字符
+            var safeParticipantId =
+                participant_id
+                ? participant_id.replace(/[^a-zA-Z0-9_-]/g, "_")
+                : "unknown";
+
+            var filename = "";
+
+
+            // =========================
+            // 前测
+            // =========================
+
+            if (session_type === "pre") {
+
+                filename =
+                    safeParticipantId +
+                    "_pre_" +
+                    session_date +
+                    ".csv";
+
+            }
+
+
+            // =========================
+            // 每日训练
+            // =========================
+
+            else if (session_type === "train") {
+
+                filename =
+                    safeParticipantId +
+                    "_train_day" +
+                    training_day +
+                    "_" +
+                    session_date +
+                    ".csv";
+
+            }
+
+
+            // =========================
+            // 后测
+            // =========================
+
+            else if (session_type === "post") {
+
+                filename =
+                    safeParticipantId +
+                    "_post_" +
+                    session_date +
+                    ".csv";
+
+            }
+
+
+            // =========================
+            // 防止网址参数异常
+            // =========================
+
+            else {
+
+                filename =
+                    safeParticipantId +
+                    "_nback_" +
+                    session_date +
+                    ".csv";
+
+            }
+
+
+            // 自动下载 CSV
+            jsPsych.data.localSave(
+                filename,
+                'csv'
+            );
+
+        }
+
+    });
+
 });
+
 </script>
+
 </body>
+
 </html>

@@ -277,8 +277,8 @@ var credit_var = true //default to true
 // task specific variables
 var letters = 'bBdDgGtTvV'.split("")
 var num_blocks = 8 // number of adaptive blocks
-var base_num_trials = 20 // total num_trials = base + load 
-var test_num_trials = 80;   // 前测/后测有效 trial 数
+var base_num_trials = 5 // total num_trials = base + load 
+var test_num_trials = 5;   // 前测/后测有效 trial 数
 var block_acc = 0 // record block accuracy to determine next blocks delay
 var delay = 2 // starting delay
 var trials_left = 0 // counter used by adaptive_test_node
