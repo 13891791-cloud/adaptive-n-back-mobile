@@ -623,22 +623,20 @@ for (var i = 0; i < (base_num_trials + 1); i++) {
 
     var practice_block = {
 
-        type: 'mobile-nback',
-
-        stimulus: stim,
-
-        correct_response: correct_response,
-
-        show_feedback: true,
-
-        data: {
-            trial_id: "stim",
-            exp_stage: "practice",
-            stim: stim,
-            target: target
-        }
-
-    };
+		type: 'mobile-nback-practice',
+	
+		stimulus: stim,
+	
+		correct_response: correct_response,
+	
+		data: {
+			trial_id: "stim",
+			exp_stage: "practice",
+			stim: stim,
+			target: target
+		}
+	
+	};
 
     practice_trials.push(practice_block)
 }
