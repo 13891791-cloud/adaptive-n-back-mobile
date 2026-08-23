@@ -71,29 +71,127 @@ var randomDraw = function(lst) {
 
 //Calculates whether the last trial was correct and records the accuracy in data object
 var record_acc = function(data) {
-	var target_lower = data.target.toLowerCase()
-	var stim_lower = curr_stim.toLowerCase(0)
-	var key = data.key_press
-	if (stim_lower == target_lower && key == 37) {
-		correct = true
-		if (block_trial >= delay) {
-			block_acc += 1
-		}
-	} else if (stim_lower != target_lower && key == 40) {
-		correct = true
-		if (block_trial >= delay) {
-			block_acc += 1
-		}
-	} else {
-		correct = false
-	}
-	jsPsych.data.addDataToLastTrial({
-		correct: correct,
-		stim: curr_stim,
-		trial_num: current_trial
-	})
-	current_trial = current_trial + 1
-	block_trial = block_trial + 1
+
+    var target_lower = data.target.toLowerCase()
+
+    var stim_lower = curr_stim.toLowerCase(0)
+
+    var key = data.key_press
+
+    // 原来的正确率逻辑，保留不动
+    if (stim_lower == target_lower && key == 37) {
+
+        correct = true
+
+        if (block_trial >= delay) {
+            block_acc += 1
+        }
+
+    } else if (stim_lower != target_lower && key == 40) {
+
+        correct = true
+
+        if (block_trial >= delay) {
+            block_acc += 1
+        }
+
+    } else {
+
+        correct = false
+    }
+
+    // 从这里开始只是新增数据分类
+    var is_target =
+        stim_lower == target_lower;
+
+    var responded_match =
+        key == 37;
+
+    var responded_nonmatch =
+        key == 40;
+
+    var no_response =
+        key == -1 || key == null || typeof key === "undefined";
+
+    var hit = 0;
+    var miss = 0;
+    var false_alarm = 0;
+    var correct_rejection = 0;
+    var response_type = "no_response";
+
+    if (!no_response) {
+
+        if (is_target && responded_match) {
+            hit = 1;
+            response_type = "hit";
+        }
+
+        else if (is_target && responded_nonmatch) {
+            miss = 1;
+            response_type = "miss";
+        }
+
+        else if (!is_target && responded_match) {
+            false_alarm = 1;
+            response_type = "false_alarm";
+        }
+
+        else if (!is_target && responded_nonmatch) {
+            correct_rejection = 1;
+            response_type = "correct_rejection";
+        }
+    }
+
+    jsPsych.data.addDataToLastTrial({
+
+        correct: correct,
+
+        stim: curr_stim,
+
+        trial_num: current_trial,
+
+        participant_id: participant_id,
+
+        session_type: session_type,
+
+        training_day: training_day,
+
+        session_date: session_date,
+
+        block_num: current_block + 1,
+
+        block_trial: block_trial + 1,
+
+        n_level: delay,
+
+        target_letter: target,
+
+        is_target: is_target,
+
+        response:
+            responded_match ? "match" :
+            responded_nonmatch ? "non_match" :
+            "no_response",
+
+        response_type: response_type,
+
+        hit: hit,
+
+        miss: miss,
+
+        false_alarm: false_alarm,
+
+        correct_rejection: correct_rejection,
+
+        no_response: no_response ? 1 : 0,
+
+        rt: data.rt
+
+    })
+
+    current_trial = current_trial + 1
+
+    block_trial = block_trial + 1
 };
 
 var update_delay = function() {
@@ -135,20 +233,38 @@ var getStim = function() {
 }
 
 var getData = function() {
-	return {
-		trial_id: "stim",
-		exp_stage: "adaptive",
-		load: delay,
-		target: target,
-		block_num: current_block
-	}
+
+    return {
+
+        trial_id: "stim",
+
+        exp_stage:
+            session_type === "train" ? "adaptive" : "fixed_2back",
+
+        participant_id: participant_id,
+
+        session_type: session_type,
+
+        training_day: training_day,
+
+        session_date: session_date,
+
+        load: delay,
+
+        n_level: delay,
+
+        target: target,
+
+        block_num: current_block + 1,
+
+        block_trial: block_trial + 1,
+
+        global_trial_num: current_trial + 1
+
+    }
+
 }
 
-var getText = function() {
-	return '<div class = "centerbox"><p class = "block-text">In these next blocks, you should press the left arrow key when the current letter matches the letter that appeared ' +
-	delay +
-		' trials before. Otherwise press the down arrow key</p><p class = center-block-text>Press <strong>enter</strong> to begin.</p></div>'
-}
 
 /* ************************************ */
 /* Define experimental variables */
@@ -156,15 +272,13 @@ var getText = function() {
 // generic task variables
 var run_attention_checks = false
 var attention_check_thresh = 0.65
-var sumInstructTime = 0 //ms
-var instructTimeThresh = 0 ///in seconds
 var credit_var = true //default to true
 
 // task specific variables
 var letters = 'bBdDgGtTvV'.split("")
-var num_blocks = 20 // number of adaptive blocks
-var base_num_trials = 20 // total num_trials = base + load 
-var control_before = Math.round(Math.random()) //0 control comes before test, 1, after
+var num_blocks = 8 // number of adaptive blocks
+var base_num_trials = 5 // total num_trials = base + load 
+var test_num_trials = 5;   // 前测/后测有效 trial 数
 var block_acc = 0 // record block accuracy to determine next blocks delay
 var delay = 2 // starting delay
 var trials_left = 0 // counter used by adaptive_test_node
@@ -175,7 +289,24 @@ var block_trial = 0
 var target = ""
 var curr_stim = ''
 var stims = [] //hold stims per block
+// ================================
+// Session information
+// ================================
 
+// Read mode from URL:
+// ?mode=pre
+// ?mode=train&day=1
+// ?mode=post
+var urlParams = new URLSearchParams(window.location.search);
+
+var session_type = urlParams.get('mode');
+var training_day = urlParams.get('day');
+
+// Participant ID will be entered on the first page
+var participant_id = "";
+
+// Current date
+var session_date = new Date().toISOString().slice(0, 10);
 /* ************************************ */
 /* Set up jsPsych blocks */
 /* ************************************ */
@@ -211,74 +342,87 @@ var post_task_block = {
 
 /* define static blocks */
 var feedback_instruct_text =
-	'Welcome to the experiment. This task will take around 20 minutes. Press <strong>enter</strong> to begin.'
+    '欢迎参加本实验。<br><br>' +
+    '接下来你将完成一个工作记忆任务。<br><br>' +
+    '请在安静的环境中完成任务，并尽可能快速、准确地作答。';
+
 var feedback_instruct_block = {
-	type: 'poldrack-text',
-	cont_key: [13],
-	data: {
-		trial_id: 'instruction'
-	},
-	text: getInstructFeedback,
-	timing_post_trial: 0,
-	timing_response: 180000
-};
-/// This ensures that the subject does not read through the instructions too quickly.  If they do it too quickly, then we will go over the loop again.
-var instructions_block = {
-	type: 'poldrack-instructions',
-	pages: [
-		'<div class = "centerbox"><p class = "block-text">In this experiment you will see a sequence of letters presented one at a time. Your job is to respond by pressing the <strong>left arrow key</strong> when the letter matches the same letter that occured some number of trials before (the number of trials is called the "delay"), otherwise you should press the <strong>down arrow key</strong>. The letters will be both lower and upper case. You should ignore the case (so "t" matches "T").</p><p class = block-text>The specific delay you should pay attention to will differ between blocks of trials, and you will be told the delay before starting a block.</p><p class = block-text>For instance, if the delay is 2, you are supposed to press the left arrow key when the current letter matches the letter that occurred 2 trials ago. If you saw the sequence: g...G...v...T...b...t...b, you would press the left arrow key on the last "t" and the last "b" and the down arrow key for every other letter.</p><p class = block-text>On one block of trials there will be no delay. On this block you will be instructed to press the left arrow key to the presentation of a specific letter on that trial. For instance, the specific letter may be "t", in which case you would press the left arrow key to "t" or "T".</p></div>'
-	],
-	data: {
-		trial_id: 'instruction'
-	},
-	allow_keys: false,
-	show_clickable_nav: true,
-	timing_post_trial: 1000
+
+    type: 'mobile-text-button',
+
+    text: feedback_instruct_text,
+
+    button_text: '开始实验',
+
+    data: {
+        trial_id: 'instruction'
+    }
+
 };
 
-var instruction_node = {
-	timeline: [feedback_instruct_block, instructions_block],
-	/* This function defines stopping criteria */
-	loop_function: function(data) {
-		for (i = 0; i < data.length; i++) {
-			if ((data[i].trial_type == 'poldrack-instructions') && (data[i].rt != -1)) {
-				rt = data[i].rt
-				sumInstructTime = sumInstructTime + rt
-			}
-		}
-		if (sumInstructTime <= instructTimeThresh * 1000) {
-			feedback_instruct_text =
-				'Read through instructions too quickly.  Please take your time and make sure you understand the instructions.  Press <strong>enter</strong> to continue.'
-			return true
-		} else if (sumInstructTime > instructTimeThresh * 1000) {
-			feedback_instruct_text = 'Done with instructions. Press <strong>enter</strong> to continue.'
-			return false
-		}
-	}
-}
+var participant_id_block = {
 
+    type: 'participant-id',
+
+    data: {
+        trial_id: 'participant_id',
+        exp_stage: 'participant_info'
+    }
+
+};
 var end_block = {
-	type: 'poldrack-text',
-	text: '<div class = "centerbox"><p class = "center-block-text">Thanks for completing this task!</p><p class = center-block-text>Press <strong>enter</strong> to begin.</p></div>',
-	cont_key: [13],
-	data: {
-		trial_id: "end",
-    	exp_id: 'adaptive_n_back'
-	},
-	timing_response: 180000,
-	timing_post_trial: 0,
-	on_finish: assessPerformance
+
+    type: 'mobile-text-button',
+
+    text:
+        '<div style="text-align:center;">' +
+        '<h2>实验完成</h2>' +
+        '<p>感谢你的参与！</p>' +
+        '<p>你已经完成本次任务。</p>' +
+        '<p>请点击下方按钮结束实验。</p>' +
+        '</div>',
+
+    button_text: '完成',
+
+    data: {
+        trial_id: "end",
+        exp_id: 'adaptive_n_back',
+        exp_stage: 'end'
+    },
+
+    on_finish: function(data) {
+        assessPerformance(data);
+    }
+
 };
 
 var start_practice_block = {
-	type: 'poldrack-text',
-	text: '<div class = centerbox><p class = block-text>Starting practice. During practice, you should press the left arrow key when the current letter matches the letter that appeared 1 trial before. Otherwise press the down arrow key</p><p class = center-block-text>You will receive feedback about whether you were correct or not during practice. There will be no feedback during the main experiment. Press <strong>enter</strong> to begin.</p></div>',
-	cont_key: [13],
-	data: {
-		trial_id: "instruction"
-	},
-	timing_response: 180000,
-	timing_post_trial: 1000
+
+    type: 'mobile-text-button',
+
+    text:
+        '<div style="text-align:left;">' +
+        '<h2 style="text-align:center;">练习阶段</h2>' +
+
+        '<p>接下来你将进行 <strong>1-back</strong> 练习。</p>' +
+
+        '<p>请判断当前出现的字母，是否与<strong>前 1 个位置</strong>出现的字母相同。</p>' +
+
+        '<p>如果相同，请点击 <strong>“匹配”</strong>；' +
+        '如果不同，请点击 <strong>“不匹配”</strong>。</p>' +
+
+        '<p>练习阶段会告诉你回答是否正确；正式实验中不会提供正确或错误反馈。</p>' +
+
+        '<p>请尽可能快速、准确地完成任务。</p>' +
+        '</div>',
+
+    button_text: '开始练习',
+
+    data: {
+        trial_id: "instruction",
+        exp_stage: "practice_instruction"
+    }
+
 };
 
 var update_delay_block = {
@@ -299,99 +443,204 @@ var update_target_block = {
 	timing_post_trial: 0
 }
 
-var start_control_block = {
-	type: 'poldrack-text',
-	text: '<div class = centerbox><p class = block-text>In this block you do not have to match letters to previous letters. Instead, press the left arrow key everytime you see a "t" or "T" and the down arrow key for all other letters.</p><p class = center-block-text>Press <strong>enter</strong> to begin.</p></div>',
-	cont_key: [13],
-	data: {
-		trial_id: "instruction"
-	},
-	timing_response: 180000,
-	timing_post_trial: 2000,
-	on_finish: function() {
-		target_trials = jsPsych.randomization.repeat(['target','0', '0'], Math.round(base_num_trials/3)).slice(0,base_num_trials)
-	}
-};
 
 var start_adaptive_block = {
-	type: 'poldrack-text',
-	data: {
-		exp_stage: "adaptive",
-		trial_id: "delay_text"
-	},
-	text: getText,
-	cont_key: [13],
-	on_finish: function() {
-		block_trial = 0
-		stims = []
-		trials_left = base_num_trials + delay
-		target_trials = []
-		for (var i = 0; i < delay; i++) {
-			target_trials.push('0')
-		}
-		var trials_to_add = []
-		for ( var j = 0; j < (trials_left - delay); j++) {
-			if (j < (Math.round(base_num_trials/3))) {
-				trials_to_add.push('target')
-			} else {
-				trials_to_add.push('0')
-			}
-		}
-		trials_to_add = jsPsych.randomization.shuffle(trials_to_add)
-		target_trials = target_trials.concat(trials_to_add)
-		block_acc = 0;
-	}
-};
 
+    type: 'mobile-text-button',
+
+    data: {
+        exp_stage: "adaptive",
+        trial_id: "delay_text"
+    },
+
+    text: function() {
+
+        return (
+            '<div style="text-align:left;">' +
+
+            '<h2 style="text-align:center;">正式任务</h2>' +
+
+            '<p>接下来进行 <strong>' + delay + '-back</strong> 任务。</p>' +
+
+            '<p>请判断当前出现的字母，是否与<strong>前 ' +
+            delay +
+            ' 个位置</strong>出现的字母相同。</p>' +
+
+            '<p>如果相同，请点击 <strong>“匹配”</strong>；' +
+            '如果不同，请点击 <strong>“不匹配”</strong>。</p>' +
+
+            '<p>正式任务中不会提示回答是否正确。</p>' +
+
+            '<p>请尽可能快速、准确地作答。</p>' +
+
+            '</div>'
+        );
+
+    },
+
+    button_text: '开始本轮',
+
+    on_finish: function() {
+
+        block_trial = 0
+        stims = []
+        trials_left = base_num_trials + delay
+        target_trials = []
+
+        for (var i = 0; i < delay; i++) {
+            target_trials.push('0')
+        }
+
+        var trials_to_add = []
+
+        for (var j = 0; j < (trials_left - delay); j++) {
+
+            if (j < Math.round(base_num_trials / 3)) {
+                trials_to_add.push('target')
+            } else {
+                trials_to_add.push('0')
+            }
+
+        }
+
+        trials_to_add =
+            jsPsych.randomization.shuffle(trials_to_add)
+
+        target_trials =
+            target_trials.concat(trials_to_add)
+
+        block_acc = 0;
+
+    }
+
+};
+var start_fixed_2back_block = {
+
+    type: 'mobile-text-button',
+
+    data: {
+        exp_stage: "test",
+        trial_id: "fixed_2back_instruction"
+    },
+
+    text: function() {
+
+        var test_name =
+            session_type === "pre" ? "前测" : "后测";
+
+        return (
+            '<div style="text-align:left;">' +
+
+            '<h2 style="text-align:center;">' +
+            test_name +
+            '</h2>' +
+
+            '<p>接下来进行固定的 <strong>2-back</strong> 任务。</p>' +
+
+            '<p>请判断当前出现的字母是否与前 <strong>2 个位置</strong>出现的字母相同。</p>' +
+
+            '<p>相同请点击 <strong>“匹配”</strong>；' +
+            '不同请点击 <strong>“不匹配”</strong>。</p>' +
+
+            '<p>正式任务中不会提供正确或错误反馈。</p>' +
+
+            '<p>请尽可能快速、准确地作答。</p>' +
+
+            '</div>'
+        );
+    },
+
+    button_text: '开始任务',
+
+    on_finish: function() {
+
+        delay = 2;
+
+        block_trial = 0;
+        stims = [];
+
+        // 80个有效trial + 前2个建立序列trial
+        trials_left = test_num_trials + delay;
+
+        target_trials = [];
+
+        // 前2个不能进行2-back判断
+        for (var i = 0; i < delay; i++) {
+            target_trials.push('0');
+        }
+
+        var trials_to_add = [];
+
+        // 保持原任务大约1/3 target的比例
+        for (var j = 0; j < test_num_trials; j++) {
+
+            if (j < Math.round(test_num_trials / 3)) {
+                trials_to_add.push('target');
+            } else {
+                trials_to_add.push('0');
+            }
+
+        }
+
+        trials_to_add =
+            jsPsych.randomization.shuffle(trials_to_add);
+
+        target_trials =
+            target_trials.concat(trials_to_add);
+
+        block_acc = 0;
+    }
+
+};
 var adaptive_block = {
-	type: 'poldrack-single-stim',
-	is_html: true,
-	stimulus: getStim,
-	data: getData,
-	choices: [37,40],
-	timing_stim: 500,
-	timing_response: 2000,
-	timing_post_trial: 0,
-	on_finish: function(data) {
-		record_acc(data)
-	}
+    type: 'mobile-nback',
+    stimulus: getStim,
+    data: getData,
+    on_finish: function(data) {
+        record_acc(data)
+    }
 };
 
-//Setup 1-back practice
+// Setup 1-back practice
+
 practice_trials = []
+
 for (var i = 0; i < (base_num_trials + 1); i++) {
-	var stim = randomDraw(letters)
-	stims.push(stim)
-	if (i >= 1) {
-		target = stims[i - 1]
-	}
-	if (stim.toLowerCase() == target.toLowerCase()) { 
-		correct_response = 37
-	} else {
-		correct_response = 40
-	}
-	var practice_block = {
-		type: 'poldrack-categorize',
-		is_html: true,
-		stimulus: '<div class = centerbox><div class = center-text>' + stim + '</div></div>',
-		key_answer: correct_response,
-		data: {
-			trial_id: "stim",
-			exp_stage: "practice",
-			stim: stim,
-			target: target
-		},
-		correct_text: '<div class = centerbox><div style="color:green;font-size:60px"; class = center-text>Correct!</div></div>',
-		incorrect_text: '<div class = centerbox><div style="color:red;font-size:60px"; class = center-text>Incorrect</div></div>',
-		timeout_message: '<div class = centerbox><div style="font-size:60px" class = center-text>Respond Faster!</div></div>',
-		timing_feedback_duration: 500,
-		show_stim_with_feedback: false,
-		choices: [37,40],
-		timing_stim: 500,
-		timing_response: 2000,
-		timing_post_trial: 500
-	};
-	practice_trials.push(practice_block)
+
+    var stim = randomDraw(letters)
+
+    stims.push(stim)
+
+    if (i >= 1) {
+        target = stims[i - 1]
+    }
+
+    if (stim.toLowerCase() == target.toLowerCase()) {
+        correct_response = 37
+    } else {
+        correct_response = 40
+    }
+
+    var practice_block = {
+
+        type: 'mobile-nback',
+
+        stimulus: stim,
+
+        correct_response: correct_response,
+
+        show_feedback: true,
+
+        data: {
+            trial_id: "stim",
+            exp_stage: "practice",
+            stim: stim,
+            target: target
+        }
+
+    };
+
+    practice_trials.push(practice_block)
 }
 
 //Define control (0-back) block
@@ -430,31 +679,83 @@ var adaptive_test_node = {
 	}
 }
 	
-//Set up experiment
-var adaptive_n_back_experiment = []
-adaptive_n_back_experiment.push(instruction_node);
-adaptive_n_back_experiment.push(start_practice_block)
-adaptive_n_back_experiment = adaptive_n_back_experiment.concat(practice_trials)
+var adaptive_n_back_experiment = [];
 
-if (control_before === 0) {
-	adaptive_n_back_experiment.push(start_control_block)
-	adaptive_n_back_experiment = adaptive_n_back_experiment.concat(control_trials)
+// 1. 输入被试编号
+adaptive_n_back_experiment.push(participant_id_block);
+
+// 2. 总指导语
+adaptive_n_back_experiment.push(feedback_instruct_block);
+
+// ================================
+// PRETEST
+// 固定 2-back
+// ================================
+
+if (session_type === "pre") {
+
+    delay = 2;
+
+    adaptive_n_back_experiment.push(start_practice_block);
+
+    adaptive_n_back_experiment =
+        adaptive_n_back_experiment.concat(practice_trials);
+
+    adaptive_n_back_experiment.push(start_fixed_2back_block);
+
+    adaptive_n_back_experiment.push(adaptive_test_node);
+
 }
-for (var b = 0; b < num_blocks; b++) { 
-	adaptive_n_back_experiment.push(start_adaptive_block)
-	adaptive_n_back_experiment.push(adaptive_test_node)
-	if ($.inArray(b, [4, 7, 15]) != -1) {
-		adaptive_n_back_experiment.push(attention_node)
-	}
-	adaptive_n_back_experiment.push(update_delay_block)
+
+
+// ================================
+// TRAINING
+// 8-block adaptive n-back
+// ================================
+
+else if (session_type === "train") {
+
+    adaptive_n_back_experiment.push(start_practice_block);
+
+    adaptive_n_back_experiment =
+        adaptive_n_back_experiment.concat(practice_trials);
+
+    for (var b = 0; b < num_blocks; b++) {
+
+        adaptive_n_back_experiment.push(start_adaptive_block);
+
+        adaptive_n_back_experiment.push(adaptive_test_node);
+
+        adaptive_n_back_experiment.push(update_delay_block);
+
+    }
+
 }
 
 
+// ================================
+// POSTTEST
+// 固定 2-back
+// ================================
 
-if (control_before == 1) {
-	adaptive_n_back_experiment.push(start_control_block)
-	adaptive_n_back_experiment = adaptive_n_back_experiment.concat(control_trials)
+else if (session_type === "post") {
+
+    delay = 2;
+
+    adaptive_n_back_experiment.push(start_practice_block);
+
+    adaptive_n_back_experiment =
+        adaptive_n_back_experiment.concat(practice_trials);
+
+		adaptive_n_back_experiment.push(start_fixed_2back_block);
+
+    adaptive_n_back_experiment.push(adaptive_test_node);
+
 }
-//Set up control
-adaptive_n_back_experiment.push(post_task_block)
-adaptive_n_back_experiment.push(end_block)
+
+
+// ================================
+// END
+// ================================
+
+adaptive_n_back_experiment.push(end_block);

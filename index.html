@@ -18,10 +18,13 @@
 <script src='js/jspsych/poldrack_plugins/jspsych-poldrack-instructions.js'></script>
 <script src='js/jspsych/poldrack_plugins/jspsych-attention-check.js'></script>
 <script src='js/jspsych/poldrack_plugins/jspsych-poldrack-single-stim.js'></script>
+<script src='js/jspsych/poldrack_plugins/jspsych-mobile-nback.js'></script>
 <script src='js/jspsych/poldrack_plugins/jspsych-poldrack-categorize.js'></script>
 <script src='js/jspsych/plugins/jspsych-survey-text.js'></script>
 <script src='js/jspsych/plugins/jspsych-call-function.js'></script>
 <script src='js/jspsych/poldrack_plugins/poldrack_utils.js'></script>
+<script src='js/jspsych/poldrack_plugins/jspsych-mobile-text-button.js'></script>
+<script src='js/jspsych/poldrack_plugins/jspsych-participant-id.js'></script>
 <script src='experiment.js'></script>
 
 <script>
@@ -30,10 +33,16 @@ $( document ).ready(function() {
     jsPsych.init({
              timeline: adaptive_n_back_experiment,
              display_element: "getDisplayElement",
-             fullscreen: true,
+             fullscreen: false,
              on_trial_finish: function(data){
                addID('adaptive-n-back')
-             },
+               jsPsych.data.addDataToLastTrial({
+                  participant_id: participant_id,
+                  session_type: session_type,
+                 training_day: training_day,
+                 session_date: session_date
+             });
+          },
              on_finish: function(data){
 
                  // Serialize the data
