@@ -277,8 +277,8 @@ var credit_var = true //default to true
 // task specific variables
 var letters = 'bBdDgGtTvV'.split("")
 var num_blocks = 8 // number of adaptive blocks
-var base_num_trials = 5 // total num_trials = base + load 
-var test_num_trials = 5;   // 前测/后测有效 trial 数
+var base_num_trials = 20 // total num_trials = base + load 
+var test_num_trials = 80;   // 前测/后测有效 trial 数
 var block_acc = 0 // record block accuracy to determine next blocks delay
 var delay = 2 // starting delay
 var trials_left = 0 // counter used by adaptive_test_node
@@ -302,8 +302,10 @@ var urlParams = new URLSearchParams(window.location.search);
 var session_type = urlParams.get('mode');
 var training_day = urlParams.get('day');
 
-// Participant ID will be entered on the first page
-var participant_id = "";
+// 从网址中读取被试编号
+var participant_id = urlParams.get('pid') || "";
+
+var session_date = new Date().toISOString().slice(0, 10);
 
 // Current date
 var session_date = new Date().toISOString().slice(0, 10);
@@ -680,7 +682,9 @@ var adaptive_test_node = {
 var adaptive_n_back_experiment = [];
 
 // 1. 输入被试编号
-adaptive_n_back_experiment.push(participant_id_block);
+if (!participant_id) {
+    adaptive_n_back_experiment.push(participant_id_block);
+}
 
 // 2. 总指导语
 adaptive_n_back_experiment.push(feedback_instruct_block);
